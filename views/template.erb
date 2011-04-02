@@ -1,0 +1,257 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+  <head>
+	  <link type="text/css" href="/css/ui-darkness/jquery-ui-1.8.11.custom.css" rel="stylesheet" /> 
+	  <style type="text/css" media="screen">
+			body { font-family: helvetica, arial, sans-serif; font-size: 11px; }
+			#controls { width: 80px; float: left; margin-right: 20px; }
+			#body { width: 640px; height: 480px; border: 1px solid #aaa; float: left; position: relative; clear: right; font-size: 16px; }
+			.control { border: 2px doted #eee; }
+			.dialog { display: none; }
+			#save { clear: left; width: 640px; margin-left: 100px; padding-top: 10px; }
+			#feedback { display: none; }
+	  </style>
+		<script type="text/javascript" src="/js/jquery-1.5.1.min.js"></script>
+		<script type="text/javascript" src="/js/jquery-ui-1.8.11.custom.min.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			function Control(view) {
+				this.view = view || $('<div/>').addClass('control');
+				this.view.attr('contentEditable', 'true');
+				this.view.draggable({containment: '#body', scrollable: false});
+				this.view.resizable({containment: '#body' });
+			}
+	  
+			Control.prototype.add = function() {
+				this.update();
+				this.view.addClass(this.className);
+				body.append(this.view.css({left:'20px', top:'20px',position:'absolute'}));
+			}
+			
+			Control.prototype.update = function() { }
+			
+			Control.prototype.className = 'none';
+  
+			TextBoxControl.prototype = new Control;
+			TextBoxControl.prototype.constructor = TextBoxControl;
+			function TextBoxControl(text) {
+				Control.apply(this);
+				this.text = text || "Hello World";
+			}
+			
+			TextBoxControl.prototype.className = 'textbox';
+	  
+			TextBoxControl.prototype.update = function() {
+				this.view.text(this.text);
+			}
+			
+			ImageControl.prototype = new Control;
+			ImageControl.prototype.constructor = ImageControl;
+			function ImageControl(url, width, height) {
+				Control.apply(this);
+				this.url = url || "http://www.huddletogether.com/projects/lightbox2/images/image-2.jpg";
+				this.width = width || 400;
+				this.height = height || 300;
+			}
+			
+			ImageControl.prototype.className = 'image';
+			
+			ImageControl.prototype.update = function() {
+				this.view.css({width: this.width+'px', height: this.height+'px'});
+				this.view.html('<img src="'+this.url+'" width="100%" height="100%" />');
+			}
+			
+			VideoControl.prototype = new ImageControl
+			VideoControl.prototype.constructor = VideoControl;
+			function VideoControl(url, width, height) {
+				ImageControl.apply(this);
+				this.url = url || "http://cdn.kaltura.org/apis/html5lib/kplayer-examples/media/bbb_trailer_iphone.m4v";
+			}
+
+			VideoControl.prototype.update = function() {
+				this.view.css({width: this.width+'px', height: this.height+'px'});
+				this.view.html('<video controls="true" autoplay="true" src="'+this.url+'" width="100%" height="100%" />');
+			}
+			
+			$.fn.addDialog = function(func) {
+				this.dialog({
+					autoOpen: false,
+					height: 300,
+					width: 350,
+					modal: true,
+					buttons: {"Cancel": closeDialog, "Add": func}
+				});
+				return this;
+			}
+			
+			$.fn.controlButton = function() {
+				this.click(function() { 
+					var name = $(this).attr('class').split(' ')[0];
+					var id = '#' + name + '-dialog';
+					$(id).dialog("open"); 
+				});
+				return this;
+			}
+			
+			var templateName = null;
+			function saveTemplate() {
+				if (templateName == null) {
+					templateName = $(this).find('input[name=name]').val();
+				}
+				$.post('/template', {name:templateName, body:$('#body').html()},
+					function(data) {
+						if (data == "error") {
+							$('#feedback div').
+								removeClass('ui-state-highlight').
+								addClass('ui-state-error');
+							$('#feedback .ui-icon').
+								removeClass('ui-icon-info').
+								addClass('ui-icon-alert');
+							$('#feedback .message').html("Error saving template as " + templateName + ".");
+						}
+						else {
+							$('#feedback div').
+								removeClass('ui-state-error').
+								addClass('ui-state-highlight');
+							$('#feedback .ui-icon').
+								removeClass('ui-icon-alert').
+								addClass('ui-icon-info');
+							$('#feedback .message').html("Saved template as " + templateName + " successfully!");
+						}
+					}
+				);
+				$(this).dialog("close");
+			}
+			
+			function closeDialog() { $(this).dialog("close"); }
+	  
+			var controls = null;
+			var body = null;
+			function initControls() {
+				body = $('#body');
+				controls = $('#controls');
+				controls.children('button').controlButton().button();
+				$('#textbox-dialog').addDialog(function() {
+					new TextBoxControl($(this).find('input[name=text]').val()).add();
+					$('#textbox-dialog').dialog("close");
+				});
+				$('#image-dialog').addDialog(function() {
+					var url = $(this).find('input[name=url]').val();
+					var width = $(this).find('input[name=width]').val();
+					var height = $(this).find('input[name=height]').val();
+					new ImageControl(url, width, height).add();
+					$(this).dialog("close");
+				});
+				$('#video-dialog').addDialog(function() {
+					var url = $(this).find('input[name=url]').val();
+					var width = $(this).find('input[name=width]').val();
+					var height = $(this).find('input[name=height]').val();
+					new VideoControl(url, width, height).add();
+					$(this).dialog("close");
+				});
+				
+				$('#save').children('button').button();
+				$('#save button.save').click(function() {
+					if (templateName != null) saveTemplate();
+					else {
+						$('#save-dialog').dialog({modal: true, 
+							buttons: {"Cancel": closeDialog, "Save": saveTemplate}
+						});
+					}
+				});
+				$('#save button.save-as').click(function() {
+					templateName = null;
+					$('#save button.save').click();
+				});
+				$('#save button.save-quit').click(function() {
+					if (templateName != null) {
+						saveTemplate();
+						window.location = window.location.protocol + '//' + window.location.host;
+					}
+					else {
+						$('#save-dialog').dialog({modal: true, 
+							buttons: {"Cancel": closeDialog, "Save": function() {
+								saveTemplate.apply(this);
+								window.location = window.location.protocol + '//' + window.location.host;
+							}}
+						});
+					}
+				});
+				$('#save button.quit').click(function() {
+					window.location = window.location.protocol + '//' + window.location.host;
+				});
+				
+				if (window.location.hash.length > 0) {
+					templateName = window.location.hash.substring(1);
+					$.ajax('/view/' + templateName, {
+						dataType: 'json',
+						success: function(data) { 
+							$('#body').html(data.template); 
+							$('#body .control').each(function() { Control.call({}, $(this)); });
+						}
+					});
+				}
+			}
+	
+			$(initControls);
+		</script>
+		<title>Template Maker</title>
+	</head>
+	<body>
+		<div id="controls">
+			<button class='textbox'>Text Box</button>
+			<button class='image'>Image</button>
+			<button class='video'>Video</button>
+		</div>
+		<div id="body"></div>
+		<div id="save">
+			<button class="save">Save</button>
+			<button class="save-as">Save As...</button>
+			<button class="save-quit">Save and Quit</button>
+			<button class="quit">Quit</button>
+		</div>
+		<div id="feedback" class="ui-widget">
+			<div class="ui-state-error ui-corner-all" style="padding: 0 .7em;"> 
+				<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
+				<strong>Alert:</strong> <span class="message"></span></p>
+			</div>
+		</div>
+	
+		<div id="textbox-dialog" class="dialog" title="Add Text Box">
+			<form>
+				<label for="text">Text</label>
+				<input type="text" name="text" />
+			</form>
+		</div>
+		<div id="image-dialog" class="dialog" title="Add Image">
+			<form>
+				<label for="url">URL</label>
+				<input type="text" name="url" />
+				<br />
+				<label for="width">Width</label>
+				<input type="text" name="width" size="3" /> (blank for default)
+				<br />
+				<label for="height">Height</label>
+				<input type="text" name="height" size="3" /> (blank for default)
+			</form>
+		</div>
+		<div id="video-dialog" class="dialog" title="Add Video">
+			<form>
+				<label for="url">URL</label>
+				<input type="text" name="url" />
+				<br />
+				<label for="width">Width</label>
+				<input type="text" name="width" size="3" /> (blank for default)
+				<br />
+				<label for="height">Height</label>
+				<input type="text" name="height" size="3" /> (blank for default)
+			</form>
+		</div>
+		<div id="save-dialog" class="dialog" title="Save">
+			<form>
+				<label for="name">Name</label>
+				<input type="text" name="name" />
+			</form>
+		</div>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+  <head>
+	  <link type="text/css" href="/css/ui-darkness/jquery-ui-1.8.11.custom.css" rel="stylesheet" /> 
+	  <style type="text/css" media="screen">
+			body { font-family: helvetica, arial, sans-serif; font-size: 11px; }
+			.left { float: left; width: 400px; min-height: 800px; margin-right: 20px; }
+			.right { float: left; width: 400px; min-height: 800px; margin-right: 20px; }
+			.selectable .ui-selecting { background: #FECA40; }
+			.selectable .ui-selected { background: #F39814; color: white; }
+			.selectable { list-style-type: none; margin: 0; padding: 0; width: 60%; }
+			.selectable li { margin: 3px; padding: 0.4em; font-size: 1.4em; height: 18px; }
+	  </style>
+		<script type="text/javascript" src="/js/jquery-1.5.1.min.js"></script>
+		<script type="text/javascript" src="/js/jquery-ui-1.8.11.custom.min.js"></script>
+		<script type="text/javascript" charset="utf-8">
+			$(function() {
+				$('.clients li').click(function() {
+					var client = $(this);
+					$('.clients li').removeClass('ui-selected');
+					$(this).addClass('ui-selected');
+					$('.templates li').removeClass('ui-selected');
+					$.getJSON('/client/' + client.text(), function(data) {
+						$('.templates li .name[alt="'+data.templateName+'"]').parent('li').addClass('ui-selected');
+					}); 
+				});
+				$('.templates li').click(function() {
+					var client = $('.clients li.ui-selected');
+					if (client.size() > 0) {
+						if ($(this).hasClass('ui-selected')) {
+							$.post('/stop/' + client.text());
+						}
+						else {
+							$.post('/play/' + client.text() + '/' + $(this).find('.name').text());
+						}
+						$(this).toggleClass('ui-selected');
+					}
+				});
+				
+			})
+		</script>
+		<title>Active Screens</title>
+	</head>
+	<body>
+		<div class="left">
+		<h2>Clients</h2>
+	  <ul class="clients selectable">
+		<% @clients.keys.each do |client| %>
+			<li class="ui-widget-content"><%= client %></li>
+		<% end %>
+		</ul>
+		</div>
+		<div class="right">
+		<h2>Templates</h2>
+		<ul class="templates selectable">
+		<% @templates.keys.each do |template| %>
+			<li class="ui-widget-content"><span class="name" alt="<%= template %>"><%= template %></span> <a href="/template#<%= template %>">edit</a></li>
+		<% end %>
+		</ul>
+		<p><a href="/template">Make a template</a></p>
+		</div>
+  </body>
+</html>
