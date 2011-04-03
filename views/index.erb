@@ -101,11 +101,11 @@
 						if (client.size() > 0) {
 							if ($(this).hasClass('ui-selected')) {
 								$(this).removeClass('ui-selected');
-								$.post('/stop/' + client.text());
+								ws.send('stop ' + client.text());
 							}
 							else {
 								$(this).addClass('ui-selected');
-								$.post('/play/' + client.text() + '/' + $(this).find('.name').text());
+								ws.send(['play', client.text(), $(this).find('.name').text()].join(" "));
 							}
 						}
 					});

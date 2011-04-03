@@ -9,6 +9,7 @@
 			#controls { width: 80px; float: left; margin-right: 20px; }
 			#body { width: 640px; height: 480px; border: 1px solid #aaa; float: left; position: relative; clear: right; font-size: 16px; }
 			.control { border: 2px dotted #777; cursor: move; padding: 1px; }
+			.control.selected { border-color: #33e; }
 			.dialog { display: none; }
 			.remove-button { position: absolute; top: 2px; right: 2px; cursor: pointer; opacity: 0.5; }
 			.remove-button:hover { opacity: 1; }
@@ -50,7 +51,7 @@
 				this.append(removeButton);//.css('position', 'relative');
 				return this;
 			}
-
+			
 			function Control(view) {
 				this.view = view || $('<div/>').addClass('control');
 				if (view) this.addEditControls();
@@ -58,9 +59,11 @@
 			}
 			
 			Control.prototype.addEditControls = function() {
-				this.view.draggable({containment: '#body', scrollable: false});
-				this.view.resizable({containment: '#body'});
+				var control = this;
+				this.view.draggable({containment: body.selector, scrollable: false});
+				this.view.resizable({containment: body.selector});
 				this.view.addRemoveButton();
+				this.view.click(function() { control.selectionClicked(); });
 			}
 	  
 			Control.prototype.add = function() {
@@ -71,6 +74,11 @@
 				this.view.css({left:'20px', top:'20px',position:'absolute'});
 				this.update();
 				this.addEditControls();
+			}
+			
+			Control.prototype.selectionClicked = function() {
+				body.find('.control.selected').removeClass('selected');
+				this.view.addClass('selected');
 			}
 			
 			Control.prototype.update = function() { }
@@ -142,7 +150,7 @@
 				if (templateName == null) {
 					templateName = $(this).find('input[name=name]').val();
 				}
-				$.post('/template', {name:templateName, body:$('#body').html()},
+				$.post('/template', {name:templateName, body:body.html()},
 					function(data) {
 						if (data == "error") {
 							error("Error saving template as " + templateName + ".");
@@ -170,9 +178,7 @@
 			}
 			
 			function initBodyControls() {
-				$('#body .control').each(function() { 
-					var obj = new Control($(this));
-				});
+				body.find('.control').each(function() { new Control($(this)); });
 			}
 	  
 			var controls = null;
@@ -245,13 +251,7 @@
 				
 				if (window.location.hash.length > 0) {
 					setTemplateName(window.location.hash.substring(1));
-					$.ajax('/template/' + templateName + '.json', {
-						dataType: 'json',
-						success: function(data) { 
-							$('#body').html(data.body); 
-							initBodyControls();
-						}
-					});
+					body.load('/template/' + templateName + '.html', initBodyControls);
 				}
 				initBodyControls();
 				$('#feedback').addRemoveButton(true);

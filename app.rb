@@ -35,6 +35,9 @@ end
 class GlobalConfig
   class << self
     attr_accessor :clients, :templates, :client_template, :controllers
+    def update_client(name)
+      clients.each {|c| c.update if c.client_name == name }
+    end
   end
   
   TEMPLATES_PATH = File.dirname(__FILE__) + '/data/templates'
@@ -116,6 +119,20 @@ class Controller < Sinatra::WebSocket
   websocket '/controller'
   def on_open(env) GlobalConfig.controllers |= [self]; update end
   def on_close(env) GlobalConfig.controllers.delete(self) end
+    
+  def on_message(env, msg)
+    action, client, template = *msg.split(/\s+/)
+    return unless client
+    case action
+    when 'play'
+      return unless template
+      GlobalConfig.client_template[client] = template
+    when 'stop'
+      GlobalConfig.client_template.delete(client)
+    end
+    GlobalConfig.update_client(client)
+    GlobalConfig.controllers.each(&:update)
+  end
 
   def update
     data = {
@@ -133,50 +150,17 @@ class MultiDisplay < Sinatra::Base
   enable :static
   use ClientScreen
   use Controller
-  
-  get '/client/:name' do
-    erb(:client)
-  end
 
-  post '/play/:client/:template' do
-    GlobalConfig.client_template[params['client']] = params['template']
-    GlobalConfig.controllers.each(&:update)
-    update_client(params['client'])
-    'OK'
-  end
-  
-  post '/stop/:client' do
-    GlobalConfig.client_template.delete(params['client'])
-    update_client(params['client'])
-    GlobalConfig.controllers.each(&:update)
-    'OK'
-  end
-  
   post '/template' do
     GlobalConfig.templates[params['name']] = params['body']
     GlobalConfig.client_template.each do |client, tpl|
-      update_client(client) if tpl == params['name']
+      GlobalConfig.update_client(client) if tpl == params['name']
     end
     'OK'
   end
 
-  get '/template/:name.json' do
-    {'body' => GlobalConfig.templates[params['name']]}.to_json
-  end
-  
-  get '/template' do
-    erb(:template)
-  end
-  
-  get '/' do
-    erb(:index)
-  end
-  
-  private
-  
-  def update_client(name)
-    GlobalConfig.clients.each do |c| 
-      c.update if c.client_name == name
-    end
-  end
+  get('/template/:name.html') { GlobalConfig.templates[params['name']] }
+  get('/template') { erb(:template) }
+  get('/client/:name') { erb(:client) }
+  get('/') { erb(:index) }
 end
