@@ -77,6 +77,7 @@ class ClientScreen < Sinatra::WebSocket
     GlobalConfig.clients |= [self]
     @client_name = params['name']
     @timestamp = 0
+    @template = nil
     @playing = false
     update
     GlobalConfig.controllers.each(&:update)
@@ -89,22 +90,24 @@ class ClientScreen < Sinatra::WebSocket
   end
     
   def update
-    if tpl = GlobalConfig.client_template[client_name]
-      timestamp = GlobalConfig.templates.timestamp(tpl)
+    if template = GlobalConfig.client_template[client_name]
+      @timestamp = 0 if template != @template
+      @template = template
+      timestamp = GlobalConfig.templates.timestamp(@template)
       return if timestamp <= @timestamp && @playing
       @timestamp = timestamp
       @playing = true
       data = {
         'action' => 'play',
         'timestamp' => @timestamp, 
-        'templateName' => tpl,
-        'template' => GlobalConfig.templates[tpl]
+        'templateName' => @template,
+        'template' => GlobalConfig.templates[@template]
       }
     else
       @playing = false
       data = {'action' => 'stop'}
     end
-    puts "#{client_name}: Sending client update... (action=#{data['action']}, template=#{tpl})"
+    puts "#{client_name}: Sending client update... (action=#{data['action']}, template=#{@template})"
     send_data(data.to_json)
   end
 end
@@ -172,9 +175,7 @@ class MultiDisplay < Sinatra::Base
   private
   
   def update_client(name)
-    puts "Checking which clients to update (match=#{name})"
     GlobalConfig.clients.each do |c| 
-      puts "Testing #{c.client_name} == #{name}"
       c.update if c.client_name == name
     end
   end

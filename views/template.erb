@@ -3,29 +3,74 @@
 <html>
   <head>
 	  <link type="text/css" href="/css/ui-darkness/jquery-ui-1.8.11.custom.css" rel="stylesheet" /> 
+	  <link type="text/css" href="/css/colorpicker.css" rel="stylesheet" /> 
 	  <style type="text/css" media="screen">
 			body { font-family: helvetica, arial, sans-serif; font-size: 11px; }
 			#controls { width: 80px; float: left; margin-right: 20px; }
 			#body { width: 640px; height: 480px; border: 1px solid #aaa; float: left; position: relative; clear: right; font-size: 16px; }
-			.control { border: 2px doted #eee; }
+			.control { border: 2px dotted #777; cursor: move; padding: 1px; }
 			.dialog { display: none; }
+			.remove-button { position: absolute; top: 2px; right: 2px; cursor: pointer; opacity: 0.5; }
+			.remove-button:hover { opacity: 1; }
+			.colorpicker { z-index: 99999; }
 			#save { clear: left; width: 640px; margin-left: 100px; padding-top: 10px; }
-			#feedback { display: none; }
+			#status { font-size: 13px; margin-left: 10px; }
+			#feedback { display: none; margin-top: 20px; width: 640px; margin-left: 100px; }
+			#feedback .remove-button { top: 6px; right: 6px; }
+			.dialog .color-selector { float: left; width: 30px; height: 30px; background: url(/images/select.png) center; clear: right; }
 	  </style>
 		<script type="text/javascript" src="/js/jquery-1.5.1.min.js"></script>
+		<script type="text/javascript" src="/js/colorpicker.js"></script>
 		<script type="text/javascript" src="/js/jquery-ui-1.8.11.custom.min.js"></script>
 		<script type="text/javascript" charset="utf-8">
+			$.fn.addDialog = function(func) {
+				this.dialog({
+					autoOpen: false,
+					height: 300,
+					width: 350,
+					modal: false,
+					buttons: {"Cancel": closeDialog, "Add": func}
+				});
+				return this;
+			}
+			
+			$.fn.controlButton = function() {
+				this.click(function() { 
+					var name = $(this).attr('class').split(' ')[0];
+					var id = '#' + name + '-dialog';
+					$(id).dialog("open"); 
+				});
+				return this;
+			}
+
+			$.fn.addRemoveButton = function(hide) {
+				var removeButton = $('<div/>').addClass('ui-state-default ui-corner-all remove-button');
+				removeButton.append($('<span/>').addClass('ui-widget ui-icon ui-icon-close'));
+				removeButton.click(function() { hide ? $(this).parent().hide() : $(this).parent().remove(); });
+				this.append(removeButton);//.css('position', 'relative');
+				return this;
+			}
+
 			function Control(view) {
 				this.view = view || $('<div/>').addClass('control');
-				this.view.attr('contentEditable', 'true');
+				if (view) this.addEditControls();
+				//this.view.attr('contentEditable', 'true');
+			}
+			
+			Control.prototype.addEditControls = function() {
 				this.view.draggable({containment: '#body', scrollable: false});
-				this.view.resizable({containment: '#body' });
+				this.view.resizable({containment: '#body'});
+				this.view.addRemoveButton();
 			}
 	  
 			Control.prototype.add = function() {
-				this.update();
+				dirtyBit = true;
+				updateStatus();
+				body.append(this.view);
 				this.view.addClass(this.className);
-				body.append(this.view.css({left:'20px', top:'20px',position:'absolute'}));
+				this.view.css({left:'20px', top:'20px',position:'absolute'});
+				this.update();
+				this.addEditControls();
 			}
 			
 			Control.prototype.update = function() { }
@@ -34,21 +79,24 @@
   
 			TextBoxControl.prototype = new Control;
 			TextBoxControl.prototype.constructor = TextBoxControl;
-			function TextBoxControl(text) {
-				Control.apply(this);
+			function TextBoxControl(text, colour, size) {
+				Control.call(this);
 				this.text = text || "Hello World";
+				this.colour = colour || "#000";
+				this.size = size || 16;
 			}
 			
 			TextBoxControl.prototype.className = 'textbox';
 	  
 			TextBoxControl.prototype.update = function() {
 				this.view.text(this.text);
+				this.view.css({color: this.colour, 'font-size': this.size + 'px'});
 			}
 			
 			ImageControl.prototype = new Control;
 			ImageControl.prototype.constructor = ImageControl;
 			function ImageControl(url, width, height) {
-				Control.apply(this);
+				Control.call(this);
 				this.url = url || "http://www.huddletogether.com/projects/lightbox2/images/image-2.jpg";
 				this.width = width || 400;
 				this.height = height || 300;
@@ -64,7 +112,7 @@
 			VideoControl.prototype = new ImageControl
 			VideoControl.prototype.constructor = VideoControl;
 			function VideoControl(url, width, height) {
-				ImageControl.apply(this);
+				ImageControl.call(this);
 				this.url = url || "http://cdn.kaltura.org/apis/html5lib/kplayer-examples/media/bbb_trailer_iphone.m4v";
 			}
 
@@ -73,57 +121,59 @@
 				this.view.html('<video controls="true" autoplay="true" src="'+this.url+'" width="100%" height="100%" />');
 			}
 			
-			$.fn.addDialog = function(func) {
-				this.dialog({
-					autoOpen: false,
-					height: 300,
-					width: 350,
-					modal: true,
-					buttons: {"Cancel": closeDialog, "Add": func}
-				});
-				return this;
+			function info(text) {
+				$('#feedback div:first-child').removeClass().addClass('ui-state-highlight ui-corner-all');
+				$('#feedback div:first-child .ui-icon').removeClass().addClass('ui-icon ui-icon-info');
+				$('#feedback div:first-child .message').html(text);
+				$('#feedback').show();
 			}
 			
-			$.fn.controlButton = function() {
-				this.click(function() { 
-					var name = $(this).attr('class').split(' ')[0];
-					var id = '#' + name + '-dialog';
-					$(id).dialog("open"); 
-				});
-				return this;
+			function error(text) {
+				$('#feedback div:first-child').removeClass().addClass('ui-state-error ui-corner-all');
+				$('#feedback div:first-child .ui-icon').removeClass().addClass('ui-icon ui-icon-alert');
+				$('#feedback div:first-child .message').html(text)
+				$('#feedback').show();
 			}
 			
+			var dirtyBit = false;
 			var templateName = <%= @template_name ? ('"'+@template_name+'"') : 'null' %>;
 			function saveTemplate() {
+				$('#feedback').hide();
 				if (templateName == null) {
 					templateName = $(this).find('input[name=name]').val();
 				}
 				$.post('/template', {name:templateName, body:$('#body').html()},
 					function(data) {
 						if (data == "error") {
-							$('#feedback div').
-								removeClass('ui-state-highlight').
-								addClass('ui-state-error');
-							$('#feedback .ui-icon').
-								removeClass('ui-icon-info').
-								addClass('ui-icon-alert');
-							$('#feedback .message').html("Error saving template as " + templateName + ".");
+							error("Error saving template as " + templateName + ".");
 						}
 						else {
-							$('#feedback div').
-								removeClass('ui-state-error').
-								addClass('ui-state-highlight');
-							$('#feedback .ui-icon').
-								removeClass('ui-icon-alert').
-								addClass('ui-icon-info');
-							$('#feedback .message').html("Saved template as " + templateName + " successfully!");
+							info("Saved template as " + templateName + " successfully!");
+							dirtyBit = false;
+							updateStatus();
 						}
+						setTimeout('$("#feedback").fadeOut("slow")', 3000);
 					}
 				);
 				$(this).dialog("close");
 			}
 			
 			function closeDialog() { $(this).dialog("close"); }
+			
+			function setTemplateName(name) {
+				templateName = name;
+				updateStatus();
+			}
+			
+			function updateStatus() {
+				$('#status').html("Template name: <strong>" + templateName + "</strong>" + (dirtyBit ? '*' : ''));
+			}
+			
+			function initBodyControls() {
+				$('#body .control').each(function() { 
+					var obj = new Control($(this));
+				});
+			}
 	  
 			var controls = null;
 			var body = null;
@@ -132,8 +182,20 @@
 				controls = $('#controls');
 				controls.children('button').controlButton().button();
 				$('#textbox-dialog').addDialog(function() {
-					new TextBoxControl($(this).find('input[name=text]').val()).add();
+					var text = $(this).find('input[name=text]').val();
+					var colour = $(this).find('.color-selector').css('background-color');
+					var size = $(this).find('input[name=size]').val();
+					new TextBoxControl(text, colour, size).add();
 					$('#textbox-dialog').dialog("close");
+				});
+				var sel = '#textbox-dialog .color-selector';
+				$(sel).ColorPicker({
+					onBeforeShow: function() { 
+						$(this).ColorPickerSetColor($(sel).css('background-color')); 
+					},
+					onChange: function(hsb, hex, rgb) {
+						$(sel).css('background-color', '#' + hex);
+					}
 				});
 				$('#image-dialog').addDialog(function() {
 					var url = $(this).find('input[name=url]').val();
@@ -182,16 +244,17 @@
 				});
 				
 				if (window.location.hash.length > 0) {
-					templateName = window.location.hash.substring(1);
+					setTemplateName(window.location.hash.substring(1));
 					$.ajax('/template/' + templateName + '.json', {
 						dataType: 'json',
 						success: function(data) { 
 							$('#body').html(data.body); 
-							$('#body .control').each(function() { Control.call({}, $(this)); });
+							initBodyControls();
 						}
 					});
 				}
-				$('#body .control').each(function() { Control.call({}, $(this)); });
+				initBodyControls();
+				$('#feedback').addRemoveButton(true);
 			}
 	
 			$(initControls);
@@ -199,6 +262,7 @@
 		<title>Template Maker</title>
 	</head>
 	<body>
+		<h1>Template Maker</h1>
 		<div id="controls">
 			<button class='textbox'>Text Box</button>
 			<button class='image'>Image</button>
@@ -210,7 +274,9 @@
 			<button class="save-as">Save As...</button>
 			<button class="save-quit">Save and Quit</button>
 			<button class="quit">Quit</button>
+			<span id="status">Template name: <strong>Untitled</strong></span>
 		</div>
+		
 		<div id="feedback" class="ui-widget">
 			<div class="ui-state-error ui-corner-all" style="padding: 0 .7em;"> 
 				<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
@@ -221,7 +287,15 @@
 		<div id="textbox-dialog" class="dialog" title="Add Text Box">
 			<form>
 				<label for="text">Text</label>
-				<input type="text" name="text" />
+				<input type="text" name="text" value="Hello world" />
+				<br />
+				<div>
+					<label for="width" style="float:left;margin-right:5px;">Colour</label>
+					<div class='color-selector' style="background-color: #000"></div>
+				</div>
+				<br style="clear:both" />
+				<label for="width">Size</label>
+				<input type="text" name="size" size="3" value="16" />
 			</form>
 		</div>
 		<div id="image-dialog" class="dialog" title="Add Image">
@@ -230,10 +304,10 @@
 				<input type="text" name="url" />
 				<br />
 				<label for="width">Width</label>
-				<input type="text" name="width" size="3" /> (blank for default)
+				<input type="text" name="width" size="3" value="400" />
 				<br />
 				<label for="height">Height</label>
-				<input type="text" name="height" size="3" /> (blank for default)
+				<input type="text" name="height" size="3" value="300" />
 			</form>
 		</div>
 		<div id="video-dialog" class="dialog" title="Add Video">
@@ -242,10 +316,10 @@
 				<input type="text" name="url" />
 				<br />
 				<label for="width">Width</label>
-				<input type="text" name="width" size="3" /> (blank for default)
+				<input type="text" name="width" size="3" value="400" />
 				<br />
 				<label for="height">Height</label>
-				<input type="text" name="height" size="3" /> (blank for default)
+				<input type="text" name="height" size="3" value="300" />
 			</form>
 		</div>
 		<div id="save-dialog" class="dialog" title="Save">

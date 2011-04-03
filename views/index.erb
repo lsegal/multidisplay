@@ -55,7 +55,10 @@
 				this.update = function() {
 					$('#feedback').hide();
 					var selectedClient = $('.clients li.ui-selected').text();
-					var selectedTemplate = $('.templates li.ui-selected .name').text();
+					var selectedTemplate = controller.data.clientTemplate[selectedClient];
+					if (selectedTemplate == null) {
+					 	selectedTemplate = $('.templates li.ui-selected .name').text();
+					}
 					
 					$('.clients').html('');
 					$('.templates').html('').addClass('disabled');
