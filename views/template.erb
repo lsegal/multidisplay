@@ -93,7 +93,7 @@
 				return this;
 			}
 			
-			var templateName = null;
+			var templateName = <%= @template_name ? ('"'+@template_name+'"') : 'null' %>;
 			function saveTemplate() {
 				if (templateName == null) {
 					templateName = $(this).find('input[name=name]').val();
@@ -183,14 +183,15 @@
 				
 				if (window.location.hash.length > 0) {
 					templateName = window.location.hash.substring(1);
-					$.ajax('/view/' + templateName, {
+					$.ajax('/template/' + templateName + '.json', {
 						dataType: 'json',
 						success: function(data) { 
-							$('#body').html(data.template); 
+							$('#body').html(data.body); 
 							$('#body .control').each(function() { Control.call({}, $(this)); });
 						}
 					});
 				}
+				$('#body .control').each(function() { Control.call({}, $(this)); });
 			}
 	
 			$(initControls);
@@ -203,7 +204,7 @@
 			<button class='image'>Image</button>
 			<button class='video'>Video</button>
 		</div>
-		<div id="body"></div>
+		<div id="body"><%= @body %></div>
 		<div id="save">
 			<button class="save">Save</button>
 			<button class="save-as">Save As...</button>

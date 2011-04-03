@@ -4,61 +4,133 @@
   <head>
 	  <link type="text/css" href="/css/ui-darkness/jquery-ui-1.8.11.custom.css" rel="stylesheet" /> 
 	  <style type="text/css" media="screen">
+			#feedback { display: none; }
 			body { font-family: helvetica, arial, sans-serif; font-size: 11px; }
+			a { font-size: 13px; }
 			.left { float: left; width: 400px; min-height: 800px; margin-right: 20px; }
 			.right { float: left; width: 400px; min-height: 800px; margin-right: 20px; }
 			.selectable .ui-selecting { background: #FECA40; }
 			.selectable .ui-selected { background: #F39814; color: white; }
+			.selectable.disabled li { background: #777; border-color: #999; color: #222; }
 			.selectable { list-style-type: none; margin: 0; padding: 0; width: 60%; }
 			.selectable li { margin: 3px; padding: 0.4em; font-size: 1.4em; height: 18px; }
 	  </style>
 		<script type="text/javascript" src="/js/jquery-1.5.1.min.js"></script>
 		<script type="text/javascript" src="/js/jquery-ui-1.8.11.custom.min.js"></script>
 		<script type="text/javascript" charset="utf-8">
-			$(function() {
-				$('.clients li').click(function() {
-					var client = $(this);
-					$('.clients li').removeClass('ui-selected');
-					$(this).addClass('ui-selected');
-					$('.templates li').removeClass('ui-selected');
-					$.getJSON('/client/' + client.text(), function(data) {
-						$('.templates li .name[alt="'+data.templateName+'"]').parent('li').addClass('ui-selected');
-					}); 
-				});
-				$('.templates li').click(function() {
-					var client = $('.clients li.ui-selected');
-					if (client.size() > 0) {
-						if ($(this).hasClass('ui-selected')) {
-							$.post('/stop/' + client.text());
-						}
-						else {
-							$.post('/play/' + client.text() + '/' + $(this).find('.name').text());
-						}
-						$(this).toggleClass('ui-selected');
-					}
-				});
+			function info(text) {
+				$('#feedback div').removeClass().addClass('ui-state-highlight ui-corner-all');
+				$('#feedback .ui-icon').removeClass().addClass('ui-icon ui-icon-info');
+				$('#feedback .message').html(text);
+				$('#feedback').show();
+			}
+			function error(text) {
+				$('#feedback div').removeClass().addClass('ui-state-error ui-corner-all');
+				$('#feedback .ui-icon').removeClass().addClass('ui-icon ui-icon-alert');
+				$('#feedback .message').html(text)
+				$('#feedback').show();
+			}
+		
+			function Controller() {
+				var controller = this;
 				
-			})
+				var ws = new WebSocket('ws://' + window.location.host + '/controller');
+				ws.onmessage = function(evt) {
+					controller.data = JSON.parse(evt.data);
+					console.log("Got message:", controller.data);
+					controller.update();
+				}
+				ws.onopen = function() {
+					info("Loading...");
+					controller.connected = true;
+				}
+				ws.onclose = function() {
+					controller.connected = false;
+					error("Disconnected from server, attempting to reconnect...");
+					setTimeout('ctl = new Controller;', 1000);
+				}
+				
+				this.data = {};
+				this.connected = false;
+				this.update = function() {
+					$('#feedback').hide();
+					var selectedClient = $('.clients li.ui-selected').text();
+					var selectedTemplate = $('.templates li.ui-selected .name').text();
+					
+					$('.clients').html('');
+					$('.templates').html('').addClass('disabled');
+					
+					$.each(this.data.clients, function(idx, clientName) {
+						var html = $('<li class="ui-widget-content">'+clientName+'</li>');
+						if (selectedClient == clientName) {
+							html.addClass('ui-selected');
+							$('.templates').removeClass('disabled');
+						}
+						$('.clients').append(html);
+					});
+					$.each(this.data.templates, function(idx, templateName) {
+						var html = $('<li class="ui-widget-content"><span class="name" alt="'+templateName+
+							'">'+templateName+'</span> <a href="/template#'+templateName+'">edit</a></li>');
+						if (selectedTemplate == templateName) html.addClass('ui-selected');
+						$('.templates').append(html);
+					});
+					
+					$('.clients li').click(function() {
+						if (!ctl.connected) return;
+						var client = $(this);
+						var hasClass = $(this).hasClass('ui-selected');
+						$('.clients li').removeClass('ui-selected');
+						if (hasClass) {
+							$('.templates').addClass('disabled');
+							return;
+						}
+						$('.templates').removeClass('disabled');
+						$(this).addClass('ui-selected');
+						$('.templates li').removeClass('ui-selected');
+						var templateName = controller.data.clientTemplate[client.text()];
+						if (templateName != null) {
+							$('.templates li .name[alt="'+templateName+'"]').parent('li').addClass('ui-selected');
+						}
+					});
+					$('.templates li').click(function() {
+						if (!ctl.connected) return;
+						var client = $('.clients li.ui-selected');
+						if (client.size() > 0) {
+							if ($(this).hasClass('ui-selected')) {
+								$(this).removeClass('ui-selected');
+								$.post('/stop/' + client.text());
+							}
+							else {
+								$(this).addClass('ui-selected');
+								$.post('/play/' + client.text() + '/' + $(this).find('.name').text());
+							}
+						}
+					});
+				}
+			}
+		
+			$(function() {
+				ctl = new Controller;
+			});
 		</script>
 		<title>Active Screens</title>
 	</head>
 	<body>
+		<h1>Screen Controller</h1>
+		<div id="feedback" class="ui-widget">
+			<div class="ui-state-error ui-corner-all" style="padding: 0 .7em;"> 
+				<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span> 
+				<strong>Alert:</strong> <span class="message">Disconnected!</span></p>
+			</div>
+		</div>
 		<div class="left">
-		<h2>Clients</h2>
-	  <ul class="clients selectable">
-		<% @clients.keys.each do |client| %>
-			<li class="ui-widget-content"><%= client %></li>
-		<% end %>
-		</ul>
+			<h2>Clients</h2>
+	  	<ul class="clients selectable"></ul>
 		</div>
 		<div class="right">
-		<h2>Templates</h2>
-		<ul class="templates selectable">
-		<% @templates.keys.each do |template| %>
-			<li class="ui-widget-content"><span class="name" alt="<%= template %>"><%= template %></span> <a href="/template#<%= template %>">edit</a></li>
-		<% end %>
-		</ul>
-		<p><a href="/template">Make a template</a></p>
+			<h2>Templates</h2>
+			<ul class="templates selectable disabled"></ul>
+			<p><a href="/template">Make a template</a></p>
 		</div>
   </body>
 </html>
